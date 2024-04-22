@@ -1,4 +1,5 @@
 /*
+ * Copyright (c) 2024 SAS MUXen <jn.coueron@muxen.fr>
  * Copyright (c) 2023 STMicroelectronics
  *
  * SPDX-License-Identifier: Apache-2.0
@@ -6,6 +7,8 @@
 
 #include <mem.h>
 #include <st/u5/stm32u5a9.dtsi>
+#include <zephyr/dt-bindings/mipi_dsi/mipi_dsi.h>
+#include <zephyr/dt-bindings/display/panel.h>
 
 / {
 	sram0: memory@20000000 {
@@ -23,6 +26,29 @@
 			flash0: flash@8000000 {
 				reg = <0x08000000 DT_SIZE_M(4)>;
 			};
+		};
+
+		ltdc: display-controller@40016800 {
+			compatible = "st,stm32-ltdc";
+			reg = <0x40016800 0x400>;
+			interrupts = <135 0>, <136 0>;
+			interrupt-names = "ltdc", "ltdc_er";
+			clocks = <&rcc STM32_CLOCK_BUS_APB2 0x4000000>;
+			/*clocks = <&rcc STM32_SRC_PLL3_R NO_SEL>;*/
+			status = "disabled";
+		};
+
+		mipi_dsi: dsihost@40016c00 {
+			compatible = "st,stm32-mipi-dsi";
+			#address-cells = <1>;
+			#size-cells = <0>;
+			reg = <0x40016C00 0x1000>;
+			clock-names = "dsiclk", "refclk", "pixelclk";
+			clocks = <&rcc STM32_CLOCK_BUS_APB2 0x8000000>, /* RCC_APB2ENR_DSIHOSTEN <&rcc STM32_CLOCK_BUS_APB2 0x8000000> */
+				 <&rcc STM32_SRC_HSE NO_SEL>, 
+				 <&rcc STM32_SRC_PLL3_R NO_SEL>;
+			resets = <&rctl STM32_RESET(APB2, 0x8000000)>;
+			status = "disabled";
 		};
 	};
 };

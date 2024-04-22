@@ -1,4 +1,5 @@
 /*
+ * Copyright (c) 2024 MUXen <jn.coueron@muxen.fr>
  * Copyright (c) 2023 STMicroelectronics
  *
  * SPDX-License-Identifier: Apache-2.0
@@ -19,6 +20,7 @@
 		zephyr,sram = &sram0;
 		zephyr,flash = &flash0;
 		zephyr,code-partition = &slot0_partition;
+		zephyr,display = &ltdc;
 	};
 
 	leds {
@@ -99,6 +101,17 @@
 	status = "okay";
 };
 
+&pll3 {
+	status = "okay";
+	clocks = <&clk_hse>;
+	div-m = <4>;
+	mul-n = <125>;
+	div-p = <8>;
+	div-q = <8>;
+	div-r = <24>; /* 27.5 MHz */
+	fracn = <1>;
+};
+
 &rcc {
 	clocks = <&pll1>;
 	clock-frequency = <DT_FREQ_M(160)>;
@@ -141,6 +154,18 @@ uart0: &usart3 {
 	pinctrl-names = "default";
 	status = "okay";
 	clock-frequency = <I2C_BITRATE_STANDARD>;
+};
+
+&i2c5 {
+	pinctrl-0 = <&i2c5_scl_ph5 &i2c5_sda_ph4>;
+	pinctrl-names = "default";
+	clock-frequency = <I2C_BITRATE_FAST>;
+	status = "okay";
+
+	ft5336: ft5336@38 {
+		compatible = "focaltech,ft5336";
+		reg = <0x38>;
+	};
 };
 
 &i2c6 {
@@ -289,4 +314,70 @@ uart0: &usart3 {
 
 &vbat4 {
 	status = "okay";
+};
+
+&ltdc {
+	status = "okay";
+
+	// st, mb1835b 
+	width = <480>;
+	height = <480>;
+	display-timings {
+		compatible = "zephyr,panel-timing";
+		hsync-active = <0>;
+		vsync-active = <0>;
+		de-active = <0>;
+		pixelclk-active = <0>;
+		hsync-len = <1>;
+		vsync-len = <2>;
+		hback-porch = <1>;
+		vback-porch = <12>;
+		hfront-porch = <1>;
+		vfront-porch = <50>;
+		
+	};
+
+	def-back-color-red = <0>;
+	def-back-color-green = <0>;
+	def-back-color-blue = <0>;
+	pixel-format = <PANEL_PIXEL_FORMAT_RGB_888>;
+};
+
+&mipi_dsi {
+	status = "okay";
+
+	/*
+	 * DSI HOST dedicated PLL
+	 *
+	 * F_VCO = CLK_IN / pll-idf * 2 * pll-ndiv
+	 * F_VCO = 16 MHz / 4       * 2 * 125 = 1000 MHz
+	 * lane_byte_clk = F_VCO / pll-odf / 8
+	 * lane_byte_clk = 1000 Mhz / 2 / 8 = 62.5 MHz
+	 */
+	pll-ndiv = <125>;
+	pll-idf = <4>;
+	pll-odf = <2>;
+	
+	host-timeouts = <01 00 00 00 00 00 00 00 00>;
+	phy-timings = <11 40 12 23 0 7>;
+
+	vs-active-high;
+	hs-active-high;
+	de-active-high;
+	LooselyPacked;
+	LPLargestPacketSize = <64>;
+	LPVACTLargestPacketSize = <0>;
+	FrameBTAAcknowledgeEnable;
+	
+	hx8379: hx8379@0 {
+		status = "okay";
+		compatible = "himax,hx8379";
+		reg = <0x0>;
+		reset-gpios = <&dsi_lcd_qsh_030 57 GPIO_ACTIVE_HIGH>;
+		bl-gpios = <&dsi_lcd_qsh_030 53 GPIO_ACTIVE_HIGH>;
+		data-lanes = <2>;
+		width = <480>;
+		height = <480>;
+		pixel-format = <MIPI_DSI_PIXFMT_RGB888>;
+	};
 };

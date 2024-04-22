@@ -1,4 +1,5 @@
 /*
+ * Copyright (c) 2024 MUXen <jn.coueron@muxen.fr>
  * Copyright (c) 2023 bytes at work AG
  * Copyright (c) 2020 Teslabs Engineering S.L.
  * based on dsi_mcux.c
@@ -18,6 +19,7 @@
 #include <zephyr/drivers/mipi_dsi.h>
 #include <zephyr/drivers/reset.h>
 #include <zephyr/logging/log.h>
+#include <zephyr/kernel.h>
 
 LOG_MODULE_REGISTER(dsi_stm32, CONFIG_MIPI_DSI_LOG_LEVEL);
 
@@ -31,8 +33,13 @@ LOG_MODULE_REGISTER(dsi_stm32, CONFIG_MIPI_DSI_LOG_LEVEL);
 #error "Invalid LTDC pixel format chosen"
 #endif /* CONFIG_STM32_LTDC_ARGB8888 */
 
+#if defined(CONFIG_SOC_SERIES_STM32U5X)
+#define MAX_TX_ESC_CLK_KHZ 20000
+#define MAX_TX_ESC_CLK_DIV 32
+#else
 #define MAX_TX_ESC_CLK_KHZ 20000
 #define MAX_TX_ESC_CLK_DIV 8
+#endif /* CONFIG_SOC_SERIES_STM32U5X */
 
 struct mipi_dsi_stm32_config {
 	const struct device *rcc;
@@ -167,9 +174,23 @@ static int mipi_dsi_stm32_host_init(const struct device *dev)
 		return ret;
 	}
 
+	/*
+	 * DSI HOST dedicated PLL
+	 *
+	 * F_VCO = CLK_IN / pll-idf * 2 * pll-ndiv
+	 * F_VCO = 16 MHz / 4       * 2 * 125 = 1000 MHz
+	 * lane_byte_clk = F_VCO / pll-odf / 8
+	 * lane_byte_clk = 1000 Mhz / 2 / 8 = 62.5 MHz
+	 */
+
 	/* LANE_BYTE_CLOCK = CLK_IN / PLLIDF * 2 * PLLNDIV / 2 / PLLODF / 8 */
-	data->lane_clk_khz = hse_clock / data->pll_init.PLLIDF * 2 * data->pll_init.PLLNDIV / 2 /
-			     (1UL << data->pll_init.PLLODF) / 8 / 1000;
+	//int fvco = hse_clock / data->pll_init.PLLIDF * 2 * data->pll_init.PLLNDIV;
+	#if defined(CONFIG_SOC_SERIES_STM32U5X)
+		data->lane_clk_khz = hse_clock / data->pll_init.PLLIDF * 2 * data->pll_init.PLLNDIV / data->pll_init.PLLODF / 8 / 1000;
+	#else
+		data->lane_clk_khz = hse_clock / data->pll_init.PLLIDF * 2 * data->pll_init.PLLNDIV / 2 /
+			     	(1UL << data->pll_init.PLLODF) / 8 / 1000;
+	#endif /* CONFIG_SOC_SERIES_STM32U5X */
 
 	/* stm32x_hal_dsi: The values 0 and 1 stop the TX_ESC clock generation */
 	data->hdsi.Init.TXEscapeCkdiv = 0;
@@ -212,6 +233,11 @@ static int mipi_dsi_stm32_host_init(const struct device *dev)
 		return -ret;
 	}
 
+	#if defined(CONFIG_SOC_SERIES_STM32U5X)
+	if (config->lp_rx_filter_freq) {
+		LOG_ERR("Low Power RX Filter Not supported");
+	}
+	#else
 	if (config->lp_rx_filter_freq) {
 		ret = HAL_DSI_SetLowPowerRXFilter(&data->hdsi, config->lp_rx_filter_freq);
 		if (ret != HAL_OK) {
@@ -219,6 +245,7 @@ static int mipi_dsi_stm32_host_init(const struct device *dev)
 			return -ret;
 		}
 	}
+	#endif
 
 	ret = HAL_DSI_ConfigErrorMonitor(&data->hdsi, config->active_errors);
 	if (ret != HAL_OK) {

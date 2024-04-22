@@ -1,0 +1,21 @@
+# HX8379 display driver configuration options
+
+# SPDX-License-Identifier: Apache-2.0
+
+config HX8379
+	bool "HX8379 display driver"
+	default y
+	select MIPI_DSI
+	depends on DT_HAS_HIMAX_HX8379_ENABLED
+	help
+	  Enable driver for HX8379 display driver.
+
+if HX8379
+
+config DISPLAY_HX8379_INIT_PRIORITY
+	int "Initialization priority"
+	default DISPLAY_INIT_PRIORITY
+	help
+	  HX8379 display driver initialization priority.
+
+endif
